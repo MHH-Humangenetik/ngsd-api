@@ -1,0 +1,29 @@
+[project]
+name = "ngsd-api"
+version = "0.1.0"
+description = "Async Python library for interacting with the NGSD MariaDB database"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "aiomysql>=0.3.2",
+    "pydantic-settings>=2.14.1",
+    "sqlalchemy[asyncio]>=2.0.50",
+]
+
+[dependency-groups]
+dev = [
+    "click>=8.4.1",
+    "rich>=15.0.0",
+    "ruff>=0.15.15",
+]
+
+[tool.uv.sources]
+ngsd-api = { path = "src", editable = true }
+
+[build-system]
+requires = ["uv_build>=0.9.10,<0.12.0"]
+build-backend = "uv_build"
+
+[tool.pyright]
+venvPath = "."
+venv = ".venv"
