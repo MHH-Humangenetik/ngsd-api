@@ -10,4 +10,4 @@ class NgsdSettings(BaseSettings):
     user: str = "root"
     password: str = ""
 
-    model_config = {"env_prefix": "NGSD_", "env_file": ".env", "env_file_encoding": "utf-8"}
+    model_config = {"env_prefix": "NGSD_", "env_file": ".env", "env_file_encoding": "utf-8", "extra": "ignore"}
