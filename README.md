@@ -63,6 +63,23 @@ NGSD_PASSWORD=
 |--------|-------------|
 | `get_runs_by_processing_system(name, status=None)` | Fetch runs filtered by processing system |
 | `set_run_status_by_name(runname, status)` | Update run status |
+| `get_run_by_processed_sample_name(processed_sample_name)` | Resolve a processed sample name (e.g. `"307780PR1_03"`) to its sequencing run |
+| `get_sample_variants(sample_name, gene=None, min_acmg_class=None)` | Small variants detected in a sample, with ACMG class |
+| `get_samples_with_variant(chr, start, end, ref, obs)` | Samples carrying a specific variant, with genotype |
+| `search_variants_by_gene(gene_symbol, sample_name=None)` | Variants overlapping a gene's coding region |
+| `get_sample_phenotype(sample_name)` | A sample's disease group/status and HPO/OMIM/Orpha/ICD10 entries |
+| `get_variant_classification(chr, start, end, ref, obs)` | ACMG class, rationale, and linked PubMed IDs for a variant |
+| `get_sample_structural_variants(sample_name, sv_type="all")` | CNVs/SVs/repeat expansions detected in a sample |
+| `get_report_findings(sample_name)` | Diagnostic report findings (causal/candidate/incidental) for a sample |
+
+All read methods above are read-only (`SELECT` only, parameterized, never
+raw SQL) and never select patient-identifying columns (`patient_identifier`,
+`name_external`, `year_of_birth`, sender/receiver) or free-text comment
+fields, except `variant_classification.comment` (the ACMG rationale, which
+is the entire point of `get_variant_classification`). `tests/test_no_pii.py`
+statically guards this. A least-privilege, read-only NGSD DB user is still
+the real enforcement — these guardrails are defense in depth, not a
+substitute for DB-level grants.
 
 ## CLI Tool
 
