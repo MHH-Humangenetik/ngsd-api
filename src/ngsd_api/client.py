@@ -18,6 +18,7 @@ from .types import (
     SamplePhenotype,
     SampleVariant,
     StructuralVariant,
+    Trio,
     VariantCarrier,
     VariantClassification,
 )
@@ -530,3 +531,41 @@ class NgsdApi:
                 for r in (await session.execute(sql, report_ids_param)).fetchall()
             )
         return findings
+
+    async def get_trio_by_index(self, sample_name: str) -> Trio:
+        """Get trio (child/father/mother) for a sample via sample_relations.
+
+        Raises `ValueError` if no sample has this name, or if the sample
+        does not have exactly one father and one mother.
+        """
+        async with self.session() as session:
+            sql = sa.text("SELECT id FROM sample WHERE name = :name")
+            row = (await session.execute(sql, {"name": sample_name})).fetchone()
+            if row is None:
+                raise ValueError(f"no sample named {sample_name!r}")
+            sample_id = row[0]
+
+            sql = sa.text(
+                "SELECT s.name, s.gender "
+                "FROM sample_relations sr "
+                "JOIN sample s ON s.id = sr.sample1_id "
+                "WHERE sr.sample2_id = :sample_id AND sr.relation = 'parent-child'"
+            )
+            parents = (await session.execute(sql, {"sample_id": sample_id})).fetchall()
+
+            if not parents:
+                raise ValueError(f"sample {sample_name!r} has no parents")
+
+            father, mother = None, None
+            for name, gender in parents:
+                if gender == "male":
+                    father = name
+                elif gender == "female":
+                    mother = name
+
+            if father is None:
+                raise ValueError(f"sample {sample_name!r} has no father")
+            if mother is None:
+                raise ValueError(f"sample {sample_name!r} has no mother")
+
+        return Trio(child=sample_name, father=father, mother=mother)

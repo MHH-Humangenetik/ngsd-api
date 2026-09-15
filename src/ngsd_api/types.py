@@ -156,3 +156,12 @@ class ReportFinding:
     ref: str | None = None
     obs: str | None = None
     coordinates: str | None = None
+
+
+@dataclass(frozen=True)
+class Trio:
+    """A family trio: child with parents."""
+
+    child: str
+    father: str
+    mother: str
