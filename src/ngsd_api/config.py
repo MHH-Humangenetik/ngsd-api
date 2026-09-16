@@ -9,5 +9,6 @@ class NgsdSettings(BaseSettings):
     database: str = "ngsd"
     user: str = "root"
     password: str = ""
+    projects_base: str | None = None
 
     model_config = {"env_prefix": "NGSD_", "env_file": ".env", "env_file_encoding": "utf-8", "extra": "ignore"}

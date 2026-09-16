@@ -569,3 +569,42 @@ class NgsdApi:
                 raise ValueError(f"sample {sample_name!r} has no mother")
 
         return Trio(child=sample_name, father=father, mother=mother)
+
+    async def get_processed_sample_folder(self, processed_sample_name: str) -> str:
+        """Get the folder path for a processed sample.
+
+        The path is constructed from the project's type and name, or from
+        `folder_override` if set. If `projects_base` is configured, it is
+        prepended to the path.
+
+        Raises `ValueError` if the processed sample name doesn't parse or
+        doesn't exist.
+        """
+        try:
+            sample_name, process_id_str = processed_sample_name.rsplit("_", 1)
+            process_id = int(process_id_str)
+        except ValueError:
+            raise ValueError(f"invalid processed sample name {processed_sample_name!r}")
+
+        async with self.session() as session:
+            sql = sa.text(
+                "SELECT p.name, p.type, p.folder_override "
+                "FROM processed_sample ps "
+                "JOIN sample s ON s.id = ps.sample_id "
+                "JOIN project p ON p.id = ps.project_id "
+                "WHERE s.name = :sample_name AND ps.process_id = :process_id"
+            )
+            row = (await session.execute(sql, {"sample_name": sample_name, "process_id": process_id})).fetchone()
+            if row is None:
+                raise ValueError(f"no processed sample named {processed_sample_name!r}")
+
+            project_name, project_type, folder_override = row
+
+        sample_folder = f"{sample_name}_{process_id:02d}"
+        if folder_override:
+            path = f"{folder_override}/{sample_folder}"
+        else:
+            base = self._settings.projects_base or ""
+            path = f"{base}/{project_type}/{project_name}/{sample_folder}"
+
+        return path
