@@ -165,3 +165,13 @@ class Trio:
     child: str
     father: str
     mother: str
+
+
+@dataclass(frozen=True)
+class ProcessedSample:
+    """A processed sample with its project and processing system."""
+
+    name: str
+    process_id: int
+    project: str
+    processing_system: str

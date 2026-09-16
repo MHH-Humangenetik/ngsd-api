@@ -12,6 +12,7 @@ from .types import (
     CodingAnnotation,
     GeneVariant,
     PhenotypeEntry,
+    ProcessedSample,
     ReportFinding,
     Run,
     RunStatus,
@@ -532,7 +533,7 @@ class NgsdApi:
             )
         return findings
 
-    async def get_trio_by_index(self, sample_name: str) -> Trio:
+    async def get_trio_by_sample(self, sample_name: str) -> Trio:
         """Get trio (child/father/mother) for a sample via sample_relations.
 
         Raises `ValueError` if no sample has this name, or if the sample
@@ -608,3 +609,132 @@ class NgsdApi:
             path = f"{base}/{project_type}/{project_name}/{sample_folder}"
 
         return path
+
+    async def get_processed_samples_by_sample_name(
+        self,
+        sample_name: str,
+        project: str | None = None,
+        processing_system: str | None = None,
+    ) -> list[ProcessedSample]:
+        """Get all processed samples for a sample, with project and processing system.
+
+        Optionally filter by `project` (project name) and/or `processing_system`
+        (processing system short name).
+
+        Raises `ValueError` if no sample has this name.
+        """
+        async with self.session() as session:
+            sql = sa.text("SELECT id FROM sample WHERE name = :name")
+            row = (await session.execute(sql, {"name": sample_name})).fetchone()
+            if row is None:
+                raise ValueError(f"no sample named {sample_name!r}")
+            sample_id = row[0]
+
+            sql_parts = [
+                "SELECT ps.process_id, p.name, psy.name_short "
+                "FROM processed_sample ps "
+                "JOIN project p ON p.id = ps.project_id "
+                "JOIN processing_system psy ON psy.id = ps.processing_system_id "
+                "WHERE ps.sample_id = :sample_id"
+            ]
+            params: dict[str, str | int] = {"sample_id": sample_id}
+
+            if project is not None:
+                sql_parts.append("AND p.name = :project")
+                params["project"] = project
+            if processing_system is not None:
+                sql_parts.append("AND psy.name_short = :processing_system")
+                params["processing_system"] = processing_system
+
+            sql_parts.append("ORDER BY ps.process_id")
+            sql = sa.text(" ".join(sql_parts))
+            rows = (await session.execute(sql, params)).fetchall()
+
+        return [
+            ProcessedSample(name=f"{sample_name}_{r[0]:02d}", process_id=r[0], project=r[1], processing_system=r[2])
+            for r in rows
+        ]
+
+    async def get_trio_by_processed_sample(self, processed_sample_name: str) -> Trio:
+        """Get trio (child/father/mother) as processed sample names.
+
+        Finds parents that have processed samples matching the same project
+        AND processing system as the input, returning the newest (highest
+        process_id) for each family member.
+
+        Raises `ValueError` if the processed sample name doesn't parse,
+        doesn't exist, or if a complete trio cannot be found with matching
+        project and processing system.
+        """
+        try:
+            sample_name, process_id_str = processed_sample_name.rsplit("_", 1)
+            process_id = int(process_id_str)
+        except ValueError:
+            raise ValueError(f"invalid processed sample name {processed_sample_name!r}")
+
+        async with self.session() as session:
+            sql = sa.text(
+                "SELECT s.id, p.name, psy.name_short "
+                "FROM processed_sample ps "
+                "JOIN sample s ON s.id = ps.sample_id "
+                "JOIN project p ON p.id = ps.project_id "
+                "JOIN processing_system psy ON psy.id = ps.processing_system_id "
+                "WHERE s.name = :sample_name AND ps.process_id = :process_id"
+            )
+            row = (await session.execute(sql, {"sample_name": sample_name, "process_id": process_id})).fetchone()
+            if row is None:
+                raise ValueError(f"no processed sample named {processed_sample_name!r}")
+            child_sample_id, project, processing_system = row
+
+            sql = sa.text(
+                "SELECT s.name, s.gender "
+                "FROM sample_relations sr "
+                "JOIN sample s ON s.id = sr.sample1_id "
+                "WHERE sr.sample2_id = :sample_id AND sr.relation = 'parent-child'"
+            )
+            parents = (await session.execute(sql, {"sample_id": child_sample_id})).fetchall()
+
+            if not parents:
+                raise ValueError(f"sample {sample_name!r} has no parents")
+
+            father_sample, mother_sample = None, None
+            for name, gender in parents:
+                if gender == "male":
+                    father_sample = name
+                elif gender == "female":
+                    mother_sample = name
+
+            if father_sample is None:
+                raise ValueError(f"sample {sample_name!r} has no father")
+            if mother_sample is None:
+                raise ValueError(f"sample {sample_name!r} has no mother")
+
+            sql = sa.text(
+                "SELECT s.name, MAX(ps.process_id) "
+                "FROM processed_sample ps "
+                "JOIN sample s ON s.id = ps.sample_id "
+                "JOIN project p ON p.id = ps.project_id "
+                "JOIN processing_system psy ON psy.id = ps.processing_system_id "
+                "WHERE s.name IN :names AND p.name = :project AND psy.name_short = :processing_system "
+                "GROUP BY s.name"
+            ).bindparams(sa.bindparam("names", expanding=True))
+            rows = (await session.execute(sql, {
+                "names": [father_sample, mother_sample],
+                "project": project,
+                "processing_system": processing_system,
+            })).fetchall()
+
+            parent_ps = {r[0]: f"{r[0]}_{r[1]:02d}" for r in rows}
+
+            if father_sample not in parent_ps:
+                raise ValueError(
+                    f"father {father_sample!r} has no processed sample in project {project!r} "
+                    f"with processing system {processing_system!r}"
+                )
+            if mother_sample not in parent_ps:
+                raise ValueError(
+                    f"mother {mother_sample!r} has no processed sample in project {project!r} "
+                    f"with processing system {processing_system!r}"
+                )
+
+        return Trio(child=processed_sample_name, father=parent_ps[father_sample], mother=parent_ps[mother_sample])

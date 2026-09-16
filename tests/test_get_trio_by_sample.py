@@ -1,4 +1,4 @@
-"""Tests for NgsdApi.get_trio_by_index using mocked database responses."""
+"""Tests for NgsdApi.get_trio_by_sample using mocked database responses."""
 
 from contextlib import asynccontextmanager
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -33,7 +33,7 @@ async def test_complete_trio(api: NgsdApi) -> None:
         MagicMock(fetchall=MagicMock(return_value=[("FATHER", "male"), ("MOTHER", "female")])),
     ]
     with patch.object(api, "session", mock_session_with_responses(responses)):
-        trio = await api.get_trio_by_index("CHILD")
+        trio = await api.get_trio_by_sample("CHILD")
     assert trio == Trio(child="CHILD", father="FATHER", mother="MOTHER")
 
 
@@ -42,7 +42,7 @@ async def test_no_sample(api: NgsdApi) -> None:
     responses = [MagicMock(fetchone=MagicMock(return_value=None))]
     with patch.object(api, "session", mock_session_with_responses(responses)):
         with pytest.raises(ValueError, match="no sample named 'UNKNOWN'"):
-            await api.get_trio_by_index("UNKNOWN")
+            await api.get_trio_by_sample("UNKNOWN")
 
 
 @pytest.mark.asyncio
@@ -53,7 +53,7 @@ async def test_no_parents(api: NgsdApi) -> None:
     ]
     with patch.object(api, "session", mock_session_with_responses(responses)):
         with pytest.raises(ValueError, match="sample 'ORPHAN' has no parents"):
-            await api.get_trio_by_index("ORPHAN")
+            await api.get_trio_by_sample("ORPHAN")
 
 
 @pytest.mark.asyncio
@@ -64,7 +64,7 @@ async def test_no_father(api: NgsdApi) -> None:
     ]
     with patch.object(api, "session", mock_session_with_responses(responses)):
         with pytest.raises(ValueError, match="sample 'CHILD' has no father"):
-            await api.get_trio_by_index("CHILD")
+            await api.get_trio_by_sample("CHILD")
 
 
 @pytest.mark.asyncio
@@ -75,4 +75,4 @@ async def test_no_mother(api: NgsdApi) -> None:
     ]
     with patch.object(api, "session", mock_session_with_responses(responses)):
         with pytest.raises(ValueError, match="sample 'CHILD' has no mother"):
-            await api.get_trio_by_index("CHILD")
+            await api.get_trio_by_sample("CHILD")
