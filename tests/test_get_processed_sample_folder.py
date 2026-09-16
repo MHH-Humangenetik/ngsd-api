@@ -22,12 +22,12 @@ def mock_session_with_responses(responses: list):
 
 @pytest.fixture
 def api() -> NgsdApi:
-    return NgsdApi(NgsdSettings(host="mock", password="mock"))
+    return NgsdApi(NgsdSettings(host="mock", user="mock", password="mock"))
 
 
 @pytest.fixture
 def api_with_base() -> NgsdApi:
-    return NgsdApi(NgsdSettings(host="mock", password="mock", projects_base="/data/projects"))
+    return NgsdApi(NgsdSettings(host="mock", user="mock", password="mock", projects_base="/data/projects"))
 
 
 @pytest.mark.asyncio

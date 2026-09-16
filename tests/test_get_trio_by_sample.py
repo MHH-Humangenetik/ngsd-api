@@ -11,7 +11,7 @@ from ngsd_api.types import Trio
 
 @pytest.fixture
 def api() -> NgsdApi:
-    return NgsdApi(NgsdSettings(host="mock", password="mock"))
+    return NgsdApi(NgsdSettings(host="mock", user="mock", password="mock"))
 
 
 def mock_session_with_responses(responses: list):
