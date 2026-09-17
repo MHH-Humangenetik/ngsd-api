@@ -601,7 +601,7 @@ class NgsdApi:
 
             project_name, project_type, folder_override = row
 
-        sample_folder = f"{sample_name}_{process_id:02d}"
+        sample_folder = f"Sample_{sample_name}_{process_id:02d}"
         if folder_override:
             path = f"{folder_override}/{sample_folder}"
         else:
