@@ -235,7 +235,7 @@ class NgsdApi:
         since: date | None = None,
         status: RunStatus | None = None,
     ) -> list[Run]:
-        """List runs with flowcell, device and dates, newest first.
+        """List runs with flowcell, device (serial + type) and dates, newest first.
 
         `since` keeps runs with `start_date >= since`. Runs without a start
         date are legacy/external imports, not planned runs (planned runs are
@@ -244,7 +244,7 @@ class NgsdApi:
         excluded by it.
         """
         sql_parts = [
-            "SELECT DISTINCT sr.name, sr.status, sr.fcid, d.name, sr.start_date, sr.end_date "
+            "SELECT DISTINCT sr.name, sr.status, sr.fcid, d.name, d.type, sr.start_date, sr.end_date "
             "FROM sequencing_run sr "
             "LEFT JOIN device d ON d.id = sr.device_id"
         ]
@@ -269,7 +269,10 @@ class NgsdApi:
         async with self.session() as session:
             rows = (await session.execute(sa.text(" ".join(sql_parts)), params)).fetchall()
         return [
-            Run(name=r[0], status=RunStatus(r[1]), fcid=r[2], device=r[3], start_date=r[4], end_date=r[5])
+            Run(
+                name=r[0], status=RunStatus(r[1]), fcid=r[2], device=r[3], device_type=r[4],
+                start_date=r[5], end_date=r[6],
+            )
             for r in rows
         ]
 

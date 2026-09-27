@@ -23,6 +23,7 @@ class Run:
     status: RunStatus
     fcid: str | None = None
     device: str | None = None
+    device_type: str | None = None
     start_date: date | None = None
     end_date: date | None = None
 
