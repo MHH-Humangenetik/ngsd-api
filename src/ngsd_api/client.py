@@ -1,5 +1,7 @@
 from contextlib import asynccontextmanager
+from collections.abc import Iterable
 from dataclasses import dataclass
+from datetime import date
 from typing import Any, AsyncIterator, cast
 from sqlalchemy.ext.asyncio import AsyncConnection
 
@@ -11,6 +13,7 @@ from .config import NgsdSettings
 from .types import (
     CodingAnnotation,
     GeneVariant,
+    Parents,
     PhenotypeEntry,
     ProcessedSample,
     ReportFinding,
@@ -225,6 +228,100 @@ class NgsdApi:
                 await session.execute(sql, {"sample_name": sample_name, "process_id": process_id})
             ).fetchone()
         return Run(name=row[0], status=RunStatus(row[1])) if row else None
+
+    async def list_runs(
+        self,
+        processing_system: str | None = None,
+        since: date | None = None,
+        status: RunStatus | None = None,
+    ) -> list[Run]:
+        """List runs with flowcell, device and dates, newest first.
+
+        `since` keeps runs with `start_date >= since`. Runs without a start
+        date are legacy/external imports, not planned runs (planned runs are
+        dated with status n/a), so `since` drops them. `processing_system`
+        joins through processed_sample, so runs with no samples yet are
+        excluded by it.
+        """
+        sql_parts = [
+            "SELECT DISTINCT sr.name, sr.status, sr.fcid, d.name, sr.start_date, sr.end_date "
+            "FROM sequencing_run sr "
+            "LEFT JOIN device d ON d.id = sr.device_id"
+        ]
+        where: list[str] = []
+        params: dict[str, Any] = {}
+        if processing_system is not None:
+            sql_parts.append(
+                "JOIN processed_sample ps ON ps.sequencing_run_id = sr.id "
+                "JOIN processing_system psy ON psy.id = ps.processing_system_id"
+            )
+            where.append("psy.name_short = :processing_system")
+            params["processing_system"] = processing_system
+        if since is not None:
+            where.append("sr.start_date >= :since")
+            params["since"] = since
+        if status is not None:
+            where.append("sr.status = :status")
+            params["status"] = status.value
+        if where:
+            sql_parts.append("WHERE " + " AND ".join(where))
+        sql_parts.append("ORDER BY sr.start_date DESC, sr.name")
+        async with self.session() as session:
+            rows = (await session.execute(sa.text(" ".join(sql_parts)), params)).fetchall()
+        return [
+            Run(name=r[0], status=RunStatus(r[1]), fcid=r[2], device=r[3], start_date=r[4], end_date=r[5])
+            for r in rows
+        ]
+
+    async def get_processed_samples_by_run(self, run_name: str) -> list[ProcessedSample]:
+        """Get all processed samples sequenced on a run.
+
+        Raises `ValueError` if no run has this name.
+        """
+        async with self.session() as session:
+            sql = sa.text("SELECT id FROM sequencing_run WHERE name = :name")
+            row = (await session.execute(sql, {"name": run_name})).fetchone()
+            if row is None:
+                raise ValueError(f"no run named {run_name!r}")
+
+            sql = sa.text(
+                "SELECT s.name, ps.process_id, p.name, psy.name_short "
+                "FROM processed_sample ps "
+                "JOIN sample s ON s.id = ps.sample_id "
+                "JOIN project p ON p.id = ps.project_id "
+                "JOIN processing_system psy ON psy.id = ps.processing_system_id "
+                "WHERE ps.sequencing_run_id = :run_id "
+                "ORDER BY s.name, ps.process_id"
+            )
+            rows = (await session.execute(sql, {"run_id": row[0]})).fetchall()
+
+        return [
+            ProcessedSample(name=f"{r[0]}_{r[1]:02d}", process_id=r[1], project=r[2], processing_system=r[3])
+            for r in rows
+        ]
+
+    async def get_parents_by_samples(self, sample_names: Iterable[str]) -> dict[str, Parents]:
+        """Get father/mother for many samples via sample_relations in one query.
+
+        Never raises on incomplete families: every input name is a key, and a
+        sample without (known) parents — or an unknown name — maps to
+        `Parents(None, None)`.
+        """
+        names = list(dict.fromkeys(sample_names))
+        found: dict[str, dict[str, str]] = {n: {} for n in names}
+        if names:
+            sql = sa.text(
+                "SELECT c.name, p.name, p.gender "
+                "FROM sample_relations sr "
+                "JOIN sample c ON c.id = sr.sample2_id "
+                "JOIN sample p ON p.id = sr.sample1_id "
+                "WHERE sr.relation = 'parent-child' AND c.name IN :names"
+            ).bindparams(sa.bindparam("names", expanding=True))
+            async with self.session() as session:
+                rows = (await session.execute(sql, {"names": names})).fetchall()
+            for child, parent, gender in rows:
+                found[child].setdefault(gender, parent)
+        return {n: Parents(father=f.get("male"), mother=f.get("female")) for n, f in found.items()}
 
     async def get_sample_variants(
         self, sample_name: str, gene: str | None = None, min_acmg_class: str | None = None

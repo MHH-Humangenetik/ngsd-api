@@ -64,6 +64,9 @@ NGSD_PASSWORD=
 | `get_runs_by_processing_system(name, status=None)` | Fetch runs filtered by processing system |
 | `set_run_status_by_name(runname, status)` | Update run status |
 | `get_run_by_processed_sample_name(processed_sample_name)` | Resolve a processed sample name (e.g. `"307780PR1_03"`) to its sequencing run |
+| `list_runs(processing_system=None, since=None, status=None)` | Runs with flowcell ID, device and dates, newest first |
+| `get_processed_samples_by_run(run_name)` | Processed samples sequenced on a run |
+| `get_parents_by_samples(sample_names)` | Father/mother per sample in one query; `None` for missing parents, never raises |
 | `get_sample_variants(sample_name, gene=None, min_acmg_class=None)` | Small variants detected in a sample, with ACMG class |
 | `get_samples_with_variant(chr, start, end, ref, obs)` | Samples carrying a specific variant, with genotype |
 | `search_variants_by_gene(gene_symbol, sample_name=None)` | Variants overlapping a gene's coding region |

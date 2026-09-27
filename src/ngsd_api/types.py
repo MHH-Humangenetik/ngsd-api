@@ -1,4 +1,5 @@
 from dataclasses import dataclass, field
+from datetime import date
 from enum import Enum
 
 
@@ -20,6 +21,10 @@ class Run:
 
     name: str
     status: RunStatus
+    fcid: str | None = None
+    device: str | None = None
+    start_date: date | None = None
+    end_date: date | None = None
 
 
 @dataclass(frozen=True)
@@ -165,6 +170,14 @@ class Trio:
     child: str
     father: str
     mother: str
+
+
+@dataclass(frozen=True)
+class Parents:
+    """A sample's parents via sample_relations; either may be missing."""
+
+    father: str | None
+    mother: str | None
 
 
 @dataclass(frozen=True)
