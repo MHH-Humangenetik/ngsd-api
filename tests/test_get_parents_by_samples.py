@@ -35,7 +35,9 @@ async def test_complete_partial_and_missing(api: NgsdApi) -> None:
     ]
     responses = [MagicMock(fetchall=MagicMock(return_value=rows))]
     with patch.object(api, "session", mock_session_with_responses(responses)):
-        parents = await api.get_parents_by_samples(["CHILD1", "CHILD2", "ORPHAN", "CHILD1"])
+        parents = await api.get_parents_by_samples(
+            ["CHILD1", "CHILD2", "ORPHAN", "CHILD1"]
+        )
     assert parents == {
         "CHILD1": Parents(father="FATHER1", mother="MOTHER1"),
         "CHILD2": Parents(father=None, mother="MOTHER2"),

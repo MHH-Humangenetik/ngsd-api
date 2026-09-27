@@ -27,12 +27,18 @@ def api() -> NgsdApi:
 
 @pytest.fixture
 def api_with_base() -> NgsdApi:
-    return NgsdApi(NgsdSettings(host="mock", user="mock", password="mock", projects_base="/data/projects"))
+    return NgsdApi(
+        NgsdSettings(
+            host="mock", user="mock", password="mock", projects_base="/data/projects"
+        )
+    )
 
 
 @pytest.mark.asyncio
 async def test_path_without_base(api: NgsdApi) -> None:
-    responses = [MagicMock(fetchone=MagicMock(return_value=("MyProject", "diagnostic", None)))]
+    responses = [
+        MagicMock(fetchone=MagicMock(return_value=("MyProject", "diagnostic", None)))
+    ]
     with patch.object(api, "session", mock_session_with_responses(responses)):
         path = await api.get_processed_sample_folder("SAMPLE_01")
     assert path == "/diagnostic/MyProject/Sample_SAMPLE_01"
@@ -40,7 +46,9 @@ async def test_path_without_base(api: NgsdApi) -> None:
 
 @pytest.mark.asyncio
 async def test_path_with_base(api_with_base: NgsdApi) -> None:
-    responses = [MagicMock(fetchone=MagicMock(return_value=("MyProject", "research", None)))]
+    responses = [
+        MagicMock(fetchone=MagicMock(return_value=("MyProject", "research", None)))
+    ]
     with patch.object(api_with_base, "session", mock_session_with_responses(responses)):
         path = await api_with_base.get_processed_sample_folder("SAMPLE_03")
     assert path == "/data/projects/research/MyProject/Sample_SAMPLE_03"
@@ -48,7 +56,11 @@ async def test_path_with_base(api_with_base: NgsdApi) -> None:
 
 @pytest.mark.asyncio
 async def test_path_with_folder_override(api: NgsdApi) -> None:
-    responses = [MagicMock(fetchone=MagicMock(return_value=("MyProject", "research", "/custom/path")))]
+    responses = [
+        MagicMock(
+            fetchone=MagicMock(return_value=("MyProject", "research", "/custom/path"))
+        )
+    ]
     with patch.object(api, "session", mock_session_with_responses(responses)):
         path = await api.get_processed_sample_folder("SAMPLE_02")
     assert path == "/custom/path/Sample_SAMPLE_02"

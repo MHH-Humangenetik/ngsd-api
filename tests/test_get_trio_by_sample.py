@@ -30,7 +30,9 @@ def mock_session_with_responses(responses: list):
 async def test_complete_trio(api: NgsdApi) -> None:
     responses = [
         MagicMock(fetchone=MagicMock(return_value=(123,))),
-        MagicMock(fetchall=MagicMock(return_value=[("FATHER", "male"), ("MOTHER", "female")])),
+        MagicMock(
+            fetchall=MagicMock(return_value=[("FATHER", "male"), ("MOTHER", "female")])
+        ),
     ]
     with patch.object(api, "session", mock_session_with_responses(responses)):
         trio = await api.get_trio_by_sample("CHILD")

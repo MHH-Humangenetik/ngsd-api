@@ -35,7 +35,9 @@ _BANNED_TOKENS = (
 def test_no_pii_or_comment_columns_in_queries() -> None:
     source = Path(__file__).parent.parent.joinpath("src/ngsd_api/client.py").read_text()
     for token in _BANNED_TOKENS:
-        assert token not in source, f"banned column reference found in client.py: {token!r}"
+        assert token not in source, (
+            f"banned column reference found in client.py: {token!r}"
+        )
 
 
 if __name__ == "__main__":

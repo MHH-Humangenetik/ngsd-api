@@ -30,16 +30,30 @@ def api() -> NgsdApi:
 async def test_all_processed_samples(api: NgsdApi) -> None:
     responses = [
         MagicMock(fetchone=MagicMock(return_value=(123,))),
-        MagicMock(fetchall=MagicMock(return_value=[
-            (1, "ProjectA", "SystemX"),
-            (2, "ProjectA", "SystemY"),
-        ])),
+        MagicMock(
+            fetchall=MagicMock(
+                return_value=[
+                    (1, "ProjectA", "SystemX"),
+                    (2, "ProjectA", "SystemY"),
+                ]
+            )
+        ),
     ]
     with patch.object(api, "session", mock_session_with_responses(responses)):
         samples = await api.get_processed_samples_by_sample_name("SAMPLE")
     assert samples == [
-        ProcessedSample(name="SAMPLE_01", process_id=1, project="ProjectA", processing_system="SystemX"),
-        ProcessedSample(name="SAMPLE_02", process_id=2, project="ProjectA", processing_system="SystemY"),
+        ProcessedSample(
+            name="SAMPLE_01",
+            process_id=1,
+            project="ProjectA",
+            processing_system="SystemX",
+        ),
+        ProcessedSample(
+            name="SAMPLE_02",
+            process_id=2,
+            project="ProjectA",
+            processing_system="SystemY",
+        ),
     ]
 
 
@@ -50,7 +64,9 @@ async def test_filter_by_project(api: NgsdApi) -> None:
         MagicMock(fetchall=MagicMock(return_value=[(1, "ProjectA", "SystemX")])),
     ]
     with patch.object(api, "session", mock_session_with_responses(responses)):
-        samples = await api.get_processed_samples_by_sample_name("SAMPLE", project="ProjectA")
+        samples = await api.get_processed_samples_by_sample_name(
+            "SAMPLE", project="ProjectA"
+        )
     assert len(samples) == 1
     assert samples[0].project == "ProjectA"
 
@@ -62,7 +78,9 @@ async def test_filter_by_processing_system(api: NgsdApi) -> None:
         MagicMock(fetchall=MagicMock(return_value=[(2, "ProjectA", "SystemY")])),
     ]
     with patch.object(api, "session", mock_session_with_responses(responses)):
-        samples = await api.get_processed_samples_by_sample_name("SAMPLE", processing_system="SystemY")
+        samples = await api.get_processed_samples_by_sample_name(
+            "SAMPLE", processing_system="SystemY"
+        )
     assert len(samples) == 1
     assert samples[0].processing_system == "SystemY"
 
@@ -82,5 +100,7 @@ async def test_empty_result(api: NgsdApi) -> None:
         MagicMock(fetchall=MagicMock(return_value=[])),
     ]
     with patch.object(api, "session", mock_session_with_responses(responses)):
-        samples = await api.get_processed_samples_by_sample_name("SAMPLE", project="NonexistentProject")
+        samples = await api.get_processed_samples_by_sample_name(
+            "SAMPLE", project="NonexistentProject"
+        )
     assert samples == []

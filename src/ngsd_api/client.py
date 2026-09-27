@@ -55,7 +55,12 @@ def _parse_coding(coding: str | None) -> list[CodingAnnotation]:
         parts = entry.split(":")
         if len(parts) >= 4:
             annotations.append(
-                CodingAnnotation(gene=parts[0], transcript=parts[1], consequence=parts[2], impact=parts[3])
+                CodingAnnotation(
+                    gene=parts[0],
+                    transcript=parts[1],
+                    consequence=parts[2],
+                    impact=parts[3],
+                )
             )
     return annotations
 
@@ -67,7 +72,9 @@ def _class_at_least(acmg_class: str | None, min_class: str) -> bool:
     return int(acmg_class) >= int(min_class)
 
 
-async def _resolve_processed_samples(session: AsyncSession, sample_name: str) -> list[_ProcessedSample]:
+async def _resolve_processed_samples(
+    session: AsyncSession, sample_name: str
+) -> list[_ProcessedSample]:
     """Resolves a sample name to its processed_sample run(s) — a sample can
     have several (re-sequencing, multiple panels)."""
     sql = sa.text(
@@ -81,18 +88,29 @@ async def _resolve_processed_samples(session: AsyncSession, sample_name: str) ->
     rows = (await session.execute(sql, {"name": sample_name})).fetchall()
     if not rows:
         raise ValueError(f"no sample named {sample_name!r}")
-    return [_ProcessedSample(ps_id=r[0], processing_system=r[1], genome_build=r[2]) for r in rows]
+    return [
+        _ProcessedSample(ps_id=r[0], processing_system=r[1], genome_build=r[2])
+        for r in rows
+    ]
 
 
 async def _resolve_variant_id(
     session: AsyncSession, chr: str, start: int, end: int, ref: str, obs: str
 ) -> int | None:
-    sql = sa.text("SELECT id FROM variant WHERE chr = :chr AND start = :start AND end = :end AND ref = :ref AND obs = :obs")
-    row = (await session.execute(sql, {"chr": chr, "start": start, "end": end, "ref": ref, "obs": obs})).fetchone()
+    sql = sa.text(
+        "SELECT id FROM variant WHERE chr = :chr AND start = :start AND end = :end AND ref = :ref AND obs = :obs"
+    )
+    row = (
+        await session.execute(
+            sql, {"chr": chr, "start": start, "end": end, "ref": ref, "obs": obs}
+        )
+    ).fetchone()
     return row[0] if row else None
 
 
-async def _resolve_gene_region(session: AsyncSession, gene_symbol: str) -> tuple[str, int, int]:
+async def _resolve_gene_region(
+    session: AsyncSession, gene_symbol: str
+) -> tuple[str, int, int]:
     """Resolves a gene symbol to (chr, start, end) via its best transcript.
 
     Prefers the MANE Select transcript, falling back to the Ensembl canonical
@@ -114,7 +132,9 @@ async def _resolve_gene_region(session: AsyncSession, gene_symbol: str) -> tuple
     return f"chr{chromosome}", start, end
 
 
-def _sample_variant_from_row(row: Any, ps_by_id: dict[int, _ProcessedSample]) -> SampleVariant:
+def _sample_variant_from_row(
+    row: Any, ps_by_id: dict[int, _ProcessedSample]
+) -> SampleVariant:
     ps = ps_by_id[row[0]]
     return SampleVariant(
         processed_sample_id=row[0],
@@ -162,7 +182,9 @@ class NgsdApi:
         self._pool_connection = await self._engine.connect()
         return self
 
-    async def __aexit__(self, exc_type: object, exc_value: object, traceback: object) -> None:
+    async def __aexit__(
+        self, exc_type: object, exc_value: object, traceback: object
+    ) -> None:
         if self._pool_connection is not None:
             await self._pool_connection.close()
         await self._engine.dispose()
@@ -198,12 +220,16 @@ class NgsdApi:
         """Update the status of a run by name."""
         sql = "UPDATE sequencing_run SET status = :status WHERE name = :name"
         async with self.session() as session:
-            result = await session.execute(sa.text(sql), {"name": runname, "status": status.value})
+            result = await session.execute(
+                sa.text(sql), {"name": runname, "status": status.value}
+            )
             await session.commit()
             cursor_result = cast(CursorResult[Any], result)
             return cursor_result.rowcount > 0
 
-    async def get_run_by_processed_sample_name(self, processed_sample_name: str) -> Run | None:
+    async def get_run_by_processed_sample_name(
+        self, processed_sample_name: str
+    ) -> Run | None:
         """Resolves a processed sample name (e.g. "307780PR1_03") to its sequencing run.
 
         A processed sample name is `<sample.name>_<process_id>`, zero-padded
@@ -225,7 +251,9 @@ class NgsdApi:
         )
         async with self.session() as session:
             row = (
-                await session.execute(sql, {"sample_name": sample_name, "process_id": process_id})
+                await session.execute(
+                    sql, {"sample_name": sample_name, "process_id": process_id}
+                )
             ).fetchone()
         return Run(name=row[0], status=RunStatus(row[1])) if row else None
 
@@ -267,16 +295,25 @@ class NgsdApi:
             sql_parts.append("WHERE " + " AND ".join(where))
         sql_parts.append("ORDER BY sr.start_date DESC, sr.name")
         async with self.session() as session:
-            rows = (await session.execute(sa.text(" ".join(sql_parts)), params)).fetchall()
+            rows = (
+                await session.execute(sa.text(" ".join(sql_parts)), params)
+            ).fetchall()
         return [
             Run(
-                name=r[0], status=RunStatus(r[1]), fcid=r[2], device=r[3], device_type=r[4],
-                start_date=r[5], end_date=r[6],
+                name=r[0],
+                status=RunStatus(r[1]),
+                fcid=r[2],
+                device=r[3],
+                device_type=r[4],
+                start_date=r[5],
+                end_date=r[6],
             )
             for r in rows
         ]
 
-    async def get_processed_samples_by_run(self, run_name: str) -> list[ProcessedSample]:
+    async def get_processed_samples_by_run(
+        self, run_name: str
+    ) -> list[ProcessedSample]:
         """Get all processed samples sequenced on a run.
 
         Raises `ValueError` if no run has this name.
@@ -299,11 +336,18 @@ class NgsdApi:
             rows = (await session.execute(sql, {"run_id": row[0]})).fetchall()
 
         return [
-            ProcessedSample(name=f"{r[0]}_{r[1]:02d}", process_id=r[1], project=r[2], processing_system=r[3])
+            ProcessedSample(
+                name=f"{r[0]}_{r[1]:02d}",
+                process_id=r[1],
+                project=r[2],
+                processing_system=r[3],
+            )
             for r in rows
         ]
 
-    async def get_parents_by_samples(self, sample_names: Iterable[str]) -> dict[str, Parents]:
+    async def get_parents_by_samples(
+        self, sample_names: Iterable[str]
+    ) -> dict[str, Parents]:
         """Get father/mother for many samples via sample_relations in one query.
 
         Never raises on incomplete families: every input name is a key, and a
@@ -324,10 +368,16 @@ class NgsdApi:
                 rows = (await session.execute(sql, {"names": names})).fetchall()
             for child, parent, gender in rows:
                 found[child].setdefault(gender, parent)
-        return {n: Parents(father=f.get("male"), mother=f.get("female")) for n, f in found.items()}
+        return {
+            n: Parents(father=f.get("male"), mother=f.get("female"))
+            for n, f in found.items()
+        }
 
     async def get_sample_variants(
-        self, sample_name: str, gene: str | None = None, min_acmg_class: str | None = None
+        self,
+        sample_name: str,
+        gene: str | None = None,
+        min_acmg_class: str | None = None,
     ) -> list[SampleVariant]:
         """Small variants detected in a sample, with ACMG class if known.
 
@@ -338,15 +388,21 @@ class NgsdApi:
         async with self.session() as session:
             samples = await _resolve_processed_samples(session, sample_name)
             ps_by_id = {s.ps_id: s for s in samples}
-            sql = sa.text(_SAMPLE_VARIANTS_SQL).bindparams(sa.bindparam("ps_ids", expanding=True))
+            sql = sa.text(_SAMPLE_VARIANTS_SQL).bindparams(
+                sa.bindparam("ps_ids", expanding=True)
+            )
             rows = (
-                await session.execute(sql, {"ps_ids": list(ps_by_id), "limit": MAX_ROWS + 1})
+                await session.execute(
+                    sql, {"ps_ids": list(ps_by_id), "limit": MAX_ROWS + 1}
+                )
             ).fetchall()
         variants = [_sample_variant_from_row(row, ps_by_id) for row in rows[:MAX_ROWS]]
         if gene is not None:
             variants = [v for v in variants if any(c.gene == gene for c in v.coding)]
         if min_acmg_class is not None:
-            variants = [v for v in variants if _class_at_least(v.acmg_class, min_acmg_class)]
+            variants = [
+                v for v in variants if _class_at_least(v.acmg_class, min_acmg_class)
+            ]
         return variants
 
     async def get_samples_with_variant(
@@ -371,9 +427,19 @@ class NgsdApi:
                 "WHERE dv.variant_id = :variant_id "
                 "LIMIT :limit"
             )
-            rows = (await session.execute(sql, {"variant_id": variant_id, "limit": MAX_ROWS + 1})).fetchall()
+            rows = (
+                await session.execute(
+                    sql, {"variant_id": variant_id, "limit": MAX_ROWS + 1}
+                )
+            ).fetchall()
         return [
-            VariantCarrier(sample_name=r[0], processed_sample_id=r[1], processing_system=r[2], genotype=r[3], mosaic=bool(r[4]))
+            VariantCarrier(
+                sample_name=r[0],
+                processed_sample_id=r[1],
+                processing_system=r[2],
+                genotype=r[3],
+                mosaic=bool(r[4]),
+            )
             for r in rows[:MAX_ROWS]
         ]
 
@@ -392,14 +458,24 @@ class NgsdApi:
             if sample_name is not None:
                 samples = await _resolve_processed_samples(session, sample_name)
                 ps_by_id = {s.ps_id: s for s in samples}
-                sql = sa.text(_SAMPLE_VARIANTS_SQL).bindparams(sa.bindparam("ps_ids", expanding=True))
+                sql = sa.text(_SAMPLE_VARIANTS_SQL).bindparams(
+                    sa.bindparam("ps_ids", expanding=True)
+                )
                 rows = (
-                    await session.execute(sql, {"ps_ids": list(ps_by_id), "limit": MAX_ROWS + 1})
+                    await session.execute(
+                        sql, {"ps_ids": list(ps_by_id), "limit": MAX_ROWS + 1}
+                    )
                 ).fetchall()
-                variants = [_sample_variant_from_row(row, ps_by_id) for row in rows[:MAX_ROWS]]
-                return [v for v in variants if any(c.gene == gene_symbol for c in v.coding)]
+                variants = [
+                    _sample_variant_from_row(row, ps_by_id) for row in rows[:MAX_ROWS]
+                ]
+                return [
+                    v for v in variants if any(c.gene == gene_symbol for c in v.coding)
+                ]
 
-            chromosome, region_start, region_end = await _resolve_gene_region(session, gene_symbol)
+            chromosome, region_start, region_end = await _resolve_gene_region(
+                session, gene_symbol
+            )
             sql = sa.text(
                 "SELECT v.chr, v.start, v.end, v.ref, v.obs, v.gnomad, v.cadd, v.coding "
                 "FROM variant v WHERE v.chr = :chr AND v.start BETWEEN :region_start AND :region_end "
@@ -408,11 +484,25 @@ class NgsdApi:
             rows = (
                 await session.execute(
                     sql,
-                    {"chr": chromosome, "region_start": region_start, "region_end": region_end, "limit": MAX_ROWS + 1},
+                    {
+                        "chr": chromosome,
+                        "region_start": region_start,
+                        "region_end": region_end,
+                        "limit": MAX_ROWS + 1,
+                    },
                 )
             ).fetchall()
         unscoped = [
-            GeneVariant(chr=r[0], start=r[1], end=r[2], ref=r[3], obs=r[4], gnomad=r[5], cadd=r[6], coding=_parse_coding(r[7]))
+            GeneVariant(
+                chr=r[0],
+                start=r[1],
+                end=r[2],
+                ref=r[3],
+                obs=r[4],
+                gnomad=r[5],
+                cadd=r[6],
+                coding=_parse_coding(r[7]),
+            )
             for r in rows[:MAX_ROWS]
         ]
         return [v for v in unscoped if any(c.gene == gene_symbol for c in v.coding)]
@@ -423,7 +513,9 @@ class NgsdApi:
         Raises `ValueError` if no sample has this name.
         """
         async with self.session() as session:
-            sql = sa.text("SELECT id, disease_group, disease_status, gender, tumor FROM sample WHERE name = :name")
+            sql = sa.text(
+                "SELECT id, disease_group, disease_status, gender, tumor FROM sample WHERE name = :name"
+            )
             row = (await session.execute(sql, {"name": sample_name})).fetchone()
             if row is None:
                 raise ValueError(f"no sample named {sample_name!r}")
@@ -437,7 +529,9 @@ class NgsdApi:
             )
             entries = [
                 PhenotypeEntry(type=r[0], value=r[1], hpo_name=r[2])
-                for r in (await session.execute(sql, {"sample_id": sample_id})).fetchall()
+                for r in (
+                    await session.execute(sql, {"sample_id": sample_id})
+                ).fetchall()
             ]
         return SamplePhenotype(
             sample_name=sample_name,
@@ -461,14 +555,25 @@ class NgsdApi:
             variant_id = await _resolve_variant_id(session, chr, start, end, ref, obs)
             if variant_id is None:
                 return None
-            sql = sa.text("SELECT class, comment FROM variant_classification WHERE variant_id = :variant_id")
+            sql = sa.text(
+                "SELECT class, comment FROM variant_classification WHERE variant_id = :variant_id"
+            )
             row = (await session.execute(sql, {"variant_id": variant_id})).fetchone()
             if row is None:
                 return None
             acmg_class, comment = row
-            sql = sa.text("SELECT pubmed FROM variant_literature WHERE variant_id = :variant_id")
-            pubmed_ids = [r[0] for r in (await session.execute(sql, {"variant_id": variant_id})).fetchall()]
-        return VariantClassification(acmg_class=acmg_class, comment=comment, pubmed_ids=pubmed_ids)
+            sql = sa.text(
+                "SELECT pubmed FROM variant_literature WHERE variant_id = :variant_id"
+            )
+            pubmed_ids = [
+                r[0]
+                for r in (
+                    await session.execute(sql, {"variant_id": variant_id})
+                ).fetchall()
+            ]
+        return VariantClassification(
+            acmg_class=acmg_class, comment=comment, pubmed_ids=pubmed_ids
+        )
 
     async def get_sample_structural_variants(
         self, sample_name: str, sv_type: str = "all"
@@ -492,9 +597,20 @@ class NgsdApi:
                     "FROM cnv_callset cc JOIN cnv c ON c.cnv_callset_id = cc.id "
                     "WHERE cc.processed_sample_id IN :ps_ids LIMIT :limit"
                 ).bindparams(sa.bindparam("ps_ids", expanding=True))
-                rows = (await session.execute(sql, {"ps_ids": ps_ids, "limit": MAX_ROWS + 1})).fetchall()
+                rows = (
+                    await session.execute(
+                        sql, {"ps_ids": ps_ids, "limit": MAX_ROWS + 1}
+                    )
+                ).fetchall()
                 results.extend(
-                    StructuralVariant(sv_type="cnv", processed_sample_id=r[0], chr=r[1], start=r[2], end=r[3], cn=r[4])
+                    StructuralVariant(
+                        sv_type="cnv",
+                        processed_sample_id=r[0],
+                        chr=r[1],
+                        start=r[2],
+                        end=r[3],
+                        cn=r[4],
+                    )
                     for r in rows[:MAX_ROWS]
                 )
 
@@ -505,10 +621,19 @@ class NgsdApi:
                         f"FROM sv_callset sc JOIN {table} sv ON sv.sv_callset_id = sc.id "
                         f"WHERE sc.processed_sample_id IN :ps_ids LIMIT :limit"
                     ).bindparams(sa.bindparam("ps_ids", expanding=True))
-                    rows = (await session.execute(sql, {"ps_ids": ps_ids, "limit": MAX_ROWS + 1})).fetchall()
+                    rows = (
+                        await session.execute(
+                            sql, {"ps_ids": ps_ids, "limit": MAX_ROWS + 1}
+                        )
+                    ).fetchall()
                     results.extend(
                         StructuralVariant(
-                            sv_type=table.removeprefix("sv_"), processed_sample_id=r[0], chr=r[1], start=r[2], end=r[3], genotype=r[4]
+                            sv_type=table.removeprefix("sv_"),
+                            processed_sample_id=r[0],
+                            chr=r[1],
+                            start=r[2],
+                            end=r[3],
+                            genotype=r[4],
                         )
                         for r in rows[:MAX_ROWS]
                     )
@@ -517,11 +642,22 @@ class NgsdApi:
                     "FROM sv_callset sc JOIN sv_translocation sv ON sv.sv_callset_id = sc.id "
                     "WHERE sc.processed_sample_id IN :ps_ids LIMIT :limit"
                 ).bindparams(sa.bindparam("ps_ids", expanding=True))
-                rows = (await session.execute(sql, {"ps_ids": ps_ids, "limit": MAX_ROWS + 1})).fetchall()
+                rows = (
+                    await session.execute(
+                        sql, {"ps_ids": ps_ids, "limit": MAX_ROWS + 1}
+                    )
+                ).fetchall()
                 results.extend(
                     StructuralVariant(
-                        sv_type="translocation", processed_sample_id=r[0],
-                        chr=r[1], start=r[2], end=r[3], chr2=r[4], start2=r[5], end2=r[6], genotype=r[7],
+                        sv_type="translocation",
+                        processed_sample_id=r[0],
+                        chr=r[1],
+                        start=r[2],
+                        end=r[3],
+                        chr2=r[4],
+                        start2=r[5],
+                        end2=r[6],
+                        genotype=r[7],
                     )
                     for r in rows[:MAX_ROWS]
                 )
@@ -533,10 +669,19 @@ class NgsdApi:
                     "JOIN repeat_expansion re ON re.id = reg.repeat_expansion_id "
                     "WHERE reg.processed_sample_id IN :ps_ids LIMIT :limit"
                 ).bindparams(sa.bindparam("ps_ids", expanding=True))
-                rows = (await session.execute(sql, {"ps_ids": ps_ids, "limit": MAX_ROWS + 1})).fetchall()
+                rows = (
+                    await session.execute(
+                        sql, {"ps_ids": ps_ids, "limit": MAX_ROWS + 1}
+                    )
+                ).fetchall()
                 results.extend(
                     StructuralVariant(
-                        sv_type="re", processed_sample_id=r[0], allele1=r[1], allele2=r[2], repeat_unit=r[3], disease_names=r[4]
+                        sv_type="re",
+                        processed_sample_id=r[0],
+                        allele1=r[1],
+                        allele2=r[2],
+                        repeat_unit=r[3],
+                        disease_names=r[4],
                     )
                     for r in rows[:MAX_ROWS]
                 )
@@ -552,7 +697,12 @@ class NgsdApi:
             sql = sa.text(
                 "SELECT id FROM report_configuration WHERE processed_sample_id IN :ps_ids"
             ).bindparams(sa.bindparam("ps_ids", expanding=True))
-            report_ids = [r[0] for r in (await session.execute(sql, {"ps_ids": [s.ps_id for s in samples]})).fetchall()]
+            report_ids = [
+                r[0]
+                for r in (
+                    await session.execute(sql, {"ps_ids": [s.ps_id for s in samples]})
+                ).fetchall()
+            ]
             if not report_ids:
                 return []
             report_ids_param = {"report_ids": report_ids}
@@ -568,8 +718,16 @@ class NgsdApi:
             ).bindparams(sa.bindparam("report_ids", expanding=True))
             findings.extend(
                 ReportFinding(
-                    finding_type="variant", type=r[0], causal=bool(r[1]), acmg_class=r[2], inheritance=r[3],
-                    chr=r[4], start=r[5], end=r[6], ref=r[7], obs=r[8],
+                    finding_type="variant",
+                    type=r[0],
+                    causal=bool(r[1]),
+                    acmg_class=r[2],
+                    inheritance=r[3],
+                    chr=r[4],
+                    start=r[5],
+                    end=r[6],
+                    ref=r[7],
+                    obs=r[8],
                 )
                 for r in (await session.execute(sql, report_ids_param)).fetchall()
             )
@@ -582,8 +740,14 @@ class NgsdApi:
             ).bindparams(sa.bindparam("report_ids", expanding=True))
             findings.extend(
                 ReportFinding(
-                    finding_type="cnv", type=r[0], causal=bool(r[1]), acmg_class=r[2], inheritance=r[3],
-                    chr=r[4], start=r[5], end=r[6],
+                    finding_type="cnv",
+                    type=r[0],
+                    causal=bool(r[1]),
+                    acmg_class=r[2],
+                    inheritance=r[3],
+                    chr=r[4],
+                    start=r[5],
+                    end=r[6],
                 )
                 for r in (await session.execute(sql, report_ids_param)).fetchall()
             )
@@ -603,8 +767,14 @@ class NgsdApi:
             ).bindparams(sa.bindparam("report_ids", expanding=True))
             findings.extend(
                 ReportFinding(
-                    finding_type="sv", type=r[0], causal=bool(r[1]), acmg_class=r[2], inheritance=r[3],
-                    chr=r[4], start=r[5], end=r[6],
+                    finding_type="sv",
+                    type=r[0],
+                    causal=bool(r[1]),
+                    acmg_class=r[2],
+                    inheritance=r[3],
+                    chr=r[4],
+                    start=r[5],
+                    end=r[6],
                 )
                 for r in (await session.execute(sql, report_ids_param)).fetchall()
             )
@@ -615,7 +785,13 @@ class NgsdApi:
                 "WHERE rcr.report_configuration_id IN :report_ids"
             ).bindparams(sa.bindparam("report_ids", expanding=True))
             findings.extend(
-                ReportFinding(finding_type="re", type=r[0], causal=bool(r[1]), acmg_class=None, inheritance=r[2])
+                ReportFinding(
+                    finding_type="re",
+                    type=r[0],
+                    causal=bool(r[1]),
+                    acmg_class=None,
+                    inheritance=r[2],
+                )
                 for r in (await session.execute(sql, report_ids_param)).fetchall()
             )
 
@@ -626,8 +802,13 @@ class NgsdApi:
             ).bindparams(sa.bindparam("report_ids", expanding=True))
             findings.extend(
                 ReportFinding(
-                    finding_type="other", type=r[0], causal=True, acmg_class=None,
-                    inheritance=r[1], gene=r[2], coordinates=r[3],
+                    finding_type="other",
+                    type=r[0],
+                    causal=True,
+                    acmg_class=None,
+                    inheritance=r[1],
+                    gene=r[2],
+                    coordinates=r[3],
                 )
                 for r in (await session.execute(sql, report_ids_param)).fetchall()
             )
@@ -695,7 +876,11 @@ class NgsdApi:
                 "JOIN project p ON p.id = ps.project_id "
                 "WHERE s.name = :sample_name AND ps.process_id = :process_id"
             )
-            row = (await session.execute(sql, {"sample_name": sample_name, "process_id": process_id})).fetchone()
+            row = (
+                await session.execute(
+                    sql, {"sample_name": sample_name, "process_id": process_id}
+                )
+            ).fetchone()
             if row is None:
                 raise ValueError(f"no processed sample named {processed_sample_name!r}")
 
@@ -751,7 +936,12 @@ class NgsdApi:
             rows = (await session.execute(sql, params)).fetchall()
 
         return [
-            ProcessedSample(name=f"{sample_name}_{r[0]:02d}", process_id=r[0], project=r[1], processing_system=r[2])
+            ProcessedSample(
+                name=f"{sample_name}_{r[0]:02d}",
+                process_id=r[0],
+                project=r[1],
+                processing_system=r[2],
+            )
             for r in rows
         ]
 
@@ -781,7 +971,11 @@ class NgsdApi:
                 "JOIN processing_system psy ON psy.id = ps.processing_system_id "
                 "WHERE s.name = :sample_name AND ps.process_id = :process_id"
             )
-            row = (await session.execute(sql, {"sample_name": sample_name, "process_id": process_id})).fetchone()
+            row = (
+                await session.execute(
+                    sql, {"sample_name": sample_name, "process_id": process_id}
+                )
+            ).fetchone()
             if row is None:
                 raise ValueError(f"no processed sample named {processed_sample_name!r}")
             child_sample_id, project, processing_system = row
@@ -792,7 +986,9 @@ class NgsdApi:
                 "JOIN sample s ON s.id = sr.sample1_id "
                 "WHERE sr.sample2_id = :sample_id AND sr.relation = 'parent-child'"
             )
-            parents = (await session.execute(sql, {"sample_id": child_sample_id})).fetchall()
+            parents = (
+                await session.execute(sql, {"sample_id": child_sample_id})
+            ).fetchall()
 
             if not parents:
                 raise ValueError(f"sample {sample_name!r} has no parents")
@@ -818,11 +1014,16 @@ class NgsdApi:
                 "WHERE s.name IN :names AND p.name = :project AND psy.name_short = :processing_system "
                 "GROUP BY s.name"
             ).bindparams(sa.bindparam("names", expanding=True))
-            rows = (await session.execute(sql, {
-                "names": [father_sample, mother_sample],
-                "project": project,
-                "processing_system": processing_system,
-            })).fetchall()
+            rows = (
+                await session.execute(
+                    sql,
+                    {
+                        "names": [father_sample, mother_sample],
+                        "project": project,
+                        "processing_system": processing_system,
+                    },
+                )
+            ).fetchall()
 
             parent_ps = {r[0]: f"{r[0]}_{r[1]:02d}" for r in rows}
 
@@ -837,4 +1038,8 @@ class NgsdApi:
                     f"with processing system {processing_system!r}"
                 )
 
-        return Trio(child=processed_sample_name, father=parent_ps[father_sample], mother=parent_ps[mother_sample])
+        return Trio(
+            child=processed_sample_name,
+            father=parent_ps[father_sample],
+            mother=parent_ps[mother_sample],
+        )

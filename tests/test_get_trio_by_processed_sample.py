@@ -30,7 +30,9 @@ def api() -> NgsdApi:
 async def test_complete_trio(api: NgsdApi) -> None:
     responses = [
         MagicMock(fetchone=MagicMock(return_value=(123, "ProjectA", "SystemX"))),
-        MagicMock(fetchall=MagicMock(return_value=[("FATHER", "male"), ("MOTHER", "female")])),
+        MagicMock(
+            fetchall=MagicMock(return_value=[("FATHER", "male"), ("MOTHER", "female")])
+        ),
         MagicMock(fetchall=MagicMock(return_value=[("FATHER", 2), ("MOTHER", 3)])),
     ]
     with patch.object(api, "session", mock_session_with_responses(responses)):
@@ -89,11 +91,16 @@ async def test_no_mother(api: NgsdApi) -> None:
 async def test_father_no_matching_processed_sample(api: NgsdApi) -> None:
     responses = [
         MagicMock(fetchone=MagicMock(return_value=(123, "ProjectA", "SystemX"))),
-        MagicMock(fetchall=MagicMock(return_value=[("FATHER", "male"), ("MOTHER", "female")])),
+        MagicMock(
+            fetchall=MagicMock(return_value=[("FATHER", "male"), ("MOTHER", "female")])
+        ),
         MagicMock(fetchall=MagicMock(return_value=[("MOTHER", 1)])),
     ]
     with patch.object(api, "session", mock_session_with_responses(responses)):
-        with pytest.raises(ValueError, match="father 'FATHER' has no processed sample in project 'ProjectA'"):
+        with pytest.raises(
+            ValueError,
+            match="father 'FATHER' has no processed sample in project 'ProjectA'",
+        ):
             await api.get_trio_by_processed_sample("CHILD_01")
 
 
@@ -101,9 +108,14 @@ async def test_father_no_matching_processed_sample(api: NgsdApi) -> None:
 async def test_mother_no_matching_processed_sample(api: NgsdApi) -> None:
     responses = [
         MagicMock(fetchone=MagicMock(return_value=(123, "ProjectA", "SystemX"))),
-        MagicMock(fetchall=MagicMock(return_value=[("FATHER", "male"), ("MOTHER", "female")])),
+        MagicMock(
+            fetchall=MagicMock(return_value=[("FATHER", "male"), ("MOTHER", "female")])
+        ),
         MagicMock(fetchall=MagicMock(return_value=[("FATHER", 1)])),
     ]
     with patch.object(api, "session", mock_session_with_responses(responses)):
-        with pytest.raises(ValueError, match="mother 'MOTHER' has no processed sample in project 'ProjectA'"):
+        with pytest.raises(
+            ValueError,
+            match="mother 'MOTHER' has no processed sample in project 'ProjectA'",
+        ):
             await api.get_trio_by_processed_sample("CHILD_01")
