@@ -341,9 +341,45 @@ class NgsdApi:
                 process_id=r[1],
                 project=r[2],
                 processing_system=r[3],
+                run=run_name,
             )
             for r in rows
         ]
+
+    async def get_processed_samples_by_samples(
+        self, sample_names: Iterable[str]
+    ) -> dict[str, list[ProcessedSample]]:
+        """Get processed samples (incl. run) for many samples in one query.
+
+        Never raises: every input name is a key, and an unknown sample or one
+        without processed samples maps to `[]`. Lists are ordered by process_id.
+        """
+        names = list(dict.fromkeys(sample_names))
+        found: dict[str, list[ProcessedSample]] = {n: [] for n in names}
+        if names:
+            sql = sa.text(
+                "SELECT s.name, ps.process_id, p.name, psy.name_short, sr.name "
+                "FROM processed_sample ps "
+                "JOIN sample s ON s.id = ps.sample_id "
+                "JOIN project p ON p.id = ps.project_id "
+                "JOIN processing_system psy ON psy.id = ps.processing_system_id "
+                "LEFT JOIN sequencing_run sr ON sr.id = ps.sequencing_run_id "
+                "WHERE s.name IN :names "
+                "ORDER BY s.name, ps.process_id"
+            ).bindparams(sa.bindparam("names", expanding=True))
+            async with self.session() as session:
+                rows = (await session.execute(sql, {"names": names})).fetchall()
+            for r in rows:
+                found[r[0]].append(
+                    ProcessedSample(
+                        name=f"{r[0]}_{r[1]:02d}",
+                        process_id=r[1],
+                        project=r[2],
+                        processing_system=r[3],
+                        run=r[4],
+                    )
+                )
+        return found
 
     async def get_parents_by_samples(
         self, sample_names: Iterable[str]
@@ -916,10 +952,11 @@ class NgsdApi:
             sample_id = row[0]
 
             sql_parts = [
-                "SELECT ps.process_id, p.name, psy.name_short "
+                "SELECT ps.process_id, p.name, psy.name_short, sr.name "
                 "FROM processed_sample ps "
                 "JOIN project p ON p.id = ps.project_id "
                 "JOIN processing_system psy ON psy.id = ps.processing_system_id "
+                "LEFT JOIN sequencing_run sr ON sr.id = ps.sequencing_run_id "
                 "WHERE ps.sample_id = :sample_id"
             ]
             params: dict[str, str | int] = {"sample_id": sample_id}
@@ -941,6 +978,7 @@ class NgsdApi:
                 process_id=r[0],
                 project=r[1],
                 processing_system=r[2],
+                run=r[3],
             )
             for r in rows
         ]

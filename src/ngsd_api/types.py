@@ -183,9 +183,13 @@ class Parents:
 
 @dataclass(frozen=True)
 class ProcessedSample:
-    """A processed sample with its project and processing system."""
+    """A processed sample with its project, processing system and run.
+
+    `run` is the sequencing_run name, `None` if not (yet) assigned to a run.
+    """
 
     name: str
     process_id: int
     project: str
     processing_system: str
+    run: str | None = None

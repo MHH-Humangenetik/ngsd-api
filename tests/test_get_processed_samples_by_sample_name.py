@@ -33,8 +33,8 @@ async def test_all_processed_samples(api: NgsdApi) -> None:
         MagicMock(
             fetchall=MagicMock(
                 return_value=[
-                    (1, "ProjectA", "SystemX"),
-                    (2, "ProjectA", "SystemY"),
+                    (1, "ProjectA", "SystemX", "RUN1"),
+                    (2, "ProjectA", "SystemY", None),
                 ]
             )
         ),
@@ -47,6 +47,7 @@ async def test_all_processed_samples(api: NgsdApi) -> None:
             process_id=1,
             project="ProjectA",
             processing_system="SystemX",
+            run="RUN1",
         ),
         ProcessedSample(
             name="SAMPLE_02",
@@ -61,7 +62,9 @@ async def test_all_processed_samples(api: NgsdApi) -> None:
 async def test_filter_by_project(api: NgsdApi) -> None:
     responses = [
         MagicMock(fetchone=MagicMock(return_value=(123,))),
-        MagicMock(fetchall=MagicMock(return_value=[(1, "ProjectA", "SystemX")])),
+        MagicMock(
+            fetchall=MagicMock(return_value=[(1, "ProjectA", "SystemX", "RUN1")])
+        ),
     ]
     with patch.object(api, "session", mock_session_with_responses(responses)):
         samples = await api.get_processed_samples_by_sample_name(
@@ -75,7 +78,9 @@ async def test_filter_by_project(api: NgsdApi) -> None:
 async def test_filter_by_processing_system(api: NgsdApi) -> None:
     responses = [
         MagicMock(fetchone=MagicMock(return_value=(123,))),
-        MagicMock(fetchall=MagicMock(return_value=[(2, "ProjectA", "SystemY")])),
+        MagicMock(
+            fetchall=MagicMock(return_value=[(2, "ProjectA", "SystemY", "RUN2")])
+        ),
     ]
     with patch.object(api, "session", mock_session_with_responses(responses)):
         samples = await api.get_processed_samples_by_sample_name(

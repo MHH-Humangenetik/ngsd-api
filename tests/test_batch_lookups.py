@@ -1,4 +1,4 @@
-"""Tests for NgsdApi.get_parents_by_samples using mocked database responses."""
+"""Tests for NgsdApi batch lookups (parents, processed samples) using mocked responses."""
 
 from contextlib import asynccontextmanager
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -6,7 +6,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from ngsd_api import NgsdApi, NgsdSettings
-from ngsd_api.types import Parents
+from ngsd_api.types import Parents, ProcessedSample
 
 
 @pytest.fixture
@@ -49,3 +49,21 @@ async def test_complete_partial_and_missing(api: NgsdApi) -> None:
 async def test_empty_input_skips_query(api: NgsdApi) -> None:
     with patch.object(api, "session", mock_session_with_responses([])):
         assert await api.get_parents_by_samples([]) == {}
+
+
+@pytest.mark.asyncio
+async def test_processed_samples_by_samples(api: NgsdApi) -> None:
+    rows = [
+        ("CHILD1", 1, "ProjA", "WGS", "RUN1"),
+        ("CHILD1", 2, "ProjA", "WGS", None),
+    ]
+    responses = [MagicMock(fetchall=MagicMock(return_value=rows))]
+    with patch.object(api, "session", mock_session_with_responses(responses)):
+        result = await api.get_processed_samples_by_samples(["CHILD1", "UNKNOWN"])
+    assert result == {
+        "CHILD1": [
+            ProcessedSample("CHILD1_01", 1, "ProjA", "WGS", run="RUN1"),
+            ProcessedSample("CHILD1_02", 2, "ProjA", "WGS", run=None),
+        ],
+        "UNKNOWN": [],
+    }
