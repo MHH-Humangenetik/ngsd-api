@@ -381,6 +381,43 @@ class NgsdApi:
                 )
         return found
 
+    async def get_processed_sample(self, processed_sample_name: str) -> ProcessedSample:
+        """Get one processed sample (incl. run) by its full name, e.g. "307780PR1_03".
+
+        Raises `ValueError` if the name doesn't parse as `<sample>_<NN>` or no
+        processed sample has this name.
+        """
+        try:
+            sample_name, process_id_str = processed_sample_name.rsplit("_", 1)
+            process_id = int(process_id_str)
+        except ValueError:
+            raise ValueError(f"invalid processed sample name {processed_sample_name!r}")
+
+        sql = sa.text(
+            "SELECT p.name, psy.name_short, sr.name "
+            "FROM processed_sample ps "
+            "JOIN sample s ON s.id = ps.sample_id "
+            "JOIN project p ON p.id = ps.project_id "
+            "JOIN processing_system psy ON psy.id = ps.processing_system_id "
+            "LEFT JOIN sequencing_run sr ON sr.id = ps.sequencing_run_id "
+            "WHERE s.name = :sample_name AND ps.process_id = :process_id"
+        )
+        async with self.session() as session:
+            row = (
+                await session.execute(
+                    sql, {"sample_name": sample_name, "process_id": process_id}
+                )
+            ).fetchone()
+        if row is None:
+            raise ValueError(f"no processed sample named {processed_sample_name!r}")
+        return ProcessedSample(
+            name=f"{sample_name}_{process_id:02d}",
+            process_id=process_id,
+            project=row[0],
+            processing_system=row[1],
+            run=row[2],
+        )
+
     async def get_parents_by_samples(
         self, sample_names: Iterable[str]
     ) -> dict[str, Parents]:
