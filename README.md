@@ -63,11 +63,12 @@ NGSD_PASSWORD=
 |--------|-------------|
 | `get_runs_by_processing_system(name, status=None)` | Fetch runs filtered by processing system |
 | `set_run_status_by_name(runname, status)` | Update run status |
-| `get_run_by_processed_sample_name(processed_sample_name)` | Resolve a processed sample name (e.g. `"307780PR1_03"`) to its sequencing run |
+| `get_run_by_processed_sample_name(processed_sample_name)` | Resolve a processed sample name (e.g. `"307780PR1_03"`) to its sequencing run, incl. flowcell, device and dates |
 | `list_runs(processing_system=None, since=None, status=None)` | Runs with flowcell ID, device and dates, newest first |
 | `get_processed_samples_by_run(run_name)` | Processed samples sequenced on a run |
 | `get_processed_samples_by_samples(sample_names)` | Processed samples incl. run per sample in one query; `[]` for unknown, never raises |
 | `get_processed_sample(processed_sample_name)` | One processed sample incl. run by full name (e.g. `307780PR1_03`); raises `ValueError` if invalid or unknown |
+| `get_processed_samples_by_sample_name(sample_name, project=None, processing_system=None)` | All processed samples of a sample incl. run, run dates, `processing_system_type` (WGS/lrGS/...), `quality`, `scheduled_for_resequencing` and `qc` (`{qc_terms.name: value}`) |
 | `get_parents_by_samples(sample_names)` | Father/mother per sample in one query; `None` for missing parents, never raises |
 | `get_sample_variants(sample_name, gene=None, min_acmg_class=None)` | Small variants detected in a sample, with ACMG class |
 | `get_samples_with_variant(chr, start, end, ref, obs)` | Samples carrying a specific variant, with genotype |

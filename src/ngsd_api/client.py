@@ -65,6 +65,19 @@ def _parse_coding(coding: str | None) -> list[CodingAnnotation]:
     return annotations
 
 
+def _parse_qc_value(term_type: str, value: str) -> float | int | str:
+    """Converts a processed_sample_qc text value per its qc_terms.type; keeps
+    the raw string if it doesn't parse (e.g. 'n/a')."""
+    try:
+        if term_type == "float":
+            return float(value)
+        if term_type == "int":
+            return int(value)
+    except ValueError:
+        pass
+    return value
+
+
 def _class_at_least(acmg_class: str | None, min_class: str) -> bool:
     """Compares ACMG classes '1'-'5' numerically; 'n/a'/'M'/'R' never match."""
     if acmg_class is None or not acmg_class.isdigit() or not min_class.isdigit():
@@ -243,8 +256,9 @@ class NgsdApi:
             return None
 
         sql = sa.text(
-            "SELECT sr.name, sr.status "
+            "SELECT sr.name, sr.status, sr.fcid, d.name, d.type, sr.start_date, sr.end_date "
             "FROM sequencing_run sr "
+            "LEFT JOIN device d ON d.id = sr.device_id "
             "JOIN processed_sample ps ON ps.sequencing_run_id = sr.id "
             "JOIN sample s ON s.id = ps.sample_id "
             "WHERE s.name = :sample_name AND ps.process_id = :process_id"
@@ -255,7 +269,17 @@ class NgsdApi:
                     sql, {"sample_name": sample_name, "process_id": process_id}
                 )
             ).fetchone()
-        return Run(name=row[0], status=RunStatus(row[1])) if row else None
+        if row is None:
+            return None
+        return Run(
+            name=row[0],
+            status=RunStatus(row[1]),
+            fcid=row[2],
+            device=row[3],
+            device_type=row[4],
+            start_date=row[5],
+            end_date=row[6],
+        )
 
     async def list_runs(
         self,
@@ -989,7 +1013,9 @@ class NgsdApi:
             sample_id = row[0]
 
             sql_parts = [
-                "SELECT ps.process_id, p.name, psy.name_short, sr.name "
+                "SELECT ps.process_id, p.name, psy.name_short, sr.name, ps.id, "
+                "psy.type, ps.quality, ps.scheduled_for_resequencing, "
+                "sr.start_date, sr.end_date "
                 "FROM processed_sample ps "
                 "JOIN project p ON p.id = ps.project_id "
                 "JOIN processing_system psy ON psy.id = ps.processing_system_id "
@@ -1009,6 +1035,19 @@ class NgsdApi:
             sql = sa.text(" ".join(sql_parts))
             rows = (await session.execute(sql, params)).fetchall()
 
+            qc: dict[int, dict[str, float | int | str]] = {r[4]: {} for r in rows}
+            if rows:
+                sql = sa.text(
+                    "SELECT q.processed_sample_id, qt.name, qt.type, q.value "
+                    "FROM processed_sample_qc q "
+                    "JOIN qc_terms qt ON qt.id = q.qc_terms_id "
+                    "WHERE q.processed_sample_id IN :ps_ids AND qt.obsolete = 0"
+                ).bindparams(sa.bindparam("ps_ids", expanding=True))
+                for ps_id, term, term_type, value in (
+                    await session.execute(sql, {"ps_ids": list(qc)})
+                ).fetchall():
+                    qc[ps_id][term] = _parse_qc_value(term_type, value)
+
         return [
             ProcessedSample(
                 name=f"{sample_name}_{r[0]:02d}",
@@ -1016,6 +1055,12 @@ class NgsdApi:
                 project=r[1],
                 processing_system=r[2],
                 run=r[3],
+                processing_system_type=r[5],
+                quality=r[6],
+                scheduled_for_resequencing=bool(r[7]),
+                run_start_date=r[8],
+                run_end_date=r[9],
+                qc=qc[r[4]],
             )
             for r in rows
         ]

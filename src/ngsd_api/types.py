@@ -186,6 +186,11 @@ class ProcessedSample:
     """A processed sample with its project, processing system and run.
 
     `run` is the sequencing_run name, `None` if not (yet) assigned to a run.
+
+    The fields after `run` are only filled by
+    `get_processed_samples_by_sample_name`; other methods leave the defaults.
+    `qc` maps qc_terms.name (e.g. "target region read depth") to its value,
+    as float/int for numeric terms and str otherwise.
     """
 
     name: str
@@ -193,3 +198,9 @@ class ProcessedSample:
     project: str
     processing_system: str
     run: str | None = None
+    processing_system_type: str | None = None
+    quality: str | None = None
+    scheduled_for_resequencing: bool | None = None
+    run_start_date: date | None = None
+    run_end_date: date | None = None
+    qc: dict[str, float | int | str] = field(default_factory=dict)

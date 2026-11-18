@@ -1,6 +1,7 @@
 """Tests for NgsdApi.get_processed_samples_by_sample_name using mocked database responses."""
 
 from contextlib import asynccontextmanager
+from datetime import date
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -33,8 +34,28 @@ async def test_all_processed_samples(api: NgsdApi) -> None:
         MagicMock(
             fetchall=MagicMock(
                 return_value=[
-                    (1, "ProjectA", "SystemX", "RUN1"),
-                    (2, "ProjectA", "SystemY", None),
+                    (
+                        1,
+                        "ProjectA",
+                        "SystemX",
+                        "RUN1",
+                        11,
+                        "WGS",
+                        "bad",
+                        0,
+                        date(2026, 4, 17),
+                        date(2026, 4, 19),
+                    ),
+                    (2, "ProjectA", "SystemY", None, 12, "lrGS", "n/a", 1, None, None),
+                ]
+            )
+        ),
+        MagicMock(
+            fetchall=MagicMock(
+                return_value=[
+                    (11, "target region read depth", "float", "40.2"),
+                    (11, "target region 20x percentage", "float", "99.48"),
+                    (12, "target region read depth", "float", "n/a"),
                 ]
             )
         ),
@@ -48,12 +69,25 @@ async def test_all_processed_samples(api: NgsdApi) -> None:
             project="ProjectA",
             processing_system="SystemX",
             run="RUN1",
+            processing_system_type="WGS",
+            quality="bad",
+            scheduled_for_resequencing=False,
+            run_start_date=date(2026, 4, 17),
+            run_end_date=date(2026, 4, 19),
+            qc={
+                "target region read depth": 40.2,
+                "target region 20x percentage": 99.48,
+            },
         ),
         ProcessedSample(
             name="SAMPLE_02",
             process_id=2,
             project="ProjectA",
             processing_system="SystemY",
+            processing_system_type="lrGS",
+            quality="n/a",
+            scheduled_for_resequencing=True,
+            qc={"target region read depth": "n/a"},
         ),
     ]
 
@@ -63,8 +97,13 @@ async def test_filter_by_project(api: NgsdApi) -> None:
     responses = [
         MagicMock(fetchone=MagicMock(return_value=(123,))),
         MagicMock(
-            fetchall=MagicMock(return_value=[(1, "ProjectA", "SystemX", "RUN1")])
+            fetchall=MagicMock(
+                return_value=[
+                    (1, "ProjectA", "SystemX", "RUN1", 1, "WGS", "good", 0, None, None)
+                ]
+            )
         ),
+        MagicMock(fetchall=MagicMock(return_value=[])),
     ]
     with patch.object(api, "session", mock_session_with_responses(responses)):
         samples = await api.get_processed_samples_by_sample_name(
@@ -79,8 +118,13 @@ async def test_filter_by_processing_system(api: NgsdApi) -> None:
     responses = [
         MagicMock(fetchone=MagicMock(return_value=(123,))),
         MagicMock(
-            fetchall=MagicMock(return_value=[(2, "ProjectA", "SystemY", "RUN2")])
+            fetchall=MagicMock(
+                return_value=[
+                    (2, "ProjectA", "SystemY", "RUN2", 1, "WGS", "good", 0, None, None)
+                ]
+            )
         ),
+        MagicMock(fetchall=MagicMock(return_value=[])),
     ]
     with patch.object(api, "session", mock_session_with_responses(responses)):
         samples = await api.get_processed_samples_by_sample_name(
